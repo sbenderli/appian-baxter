@@ -1,2 +1,1 @@
-template: Hello, %s!
-defaultName: Stranger
+rosWsDirectory: /home/serdar/ros_ws

@@ -13,6 +13,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * An object that manages IO to/from baxter
@@ -36,6 +38,11 @@ public class BaxterIO {
         this.writer = writer;
     }
     
+    public void sendCommand(String command) throws IOException {
+        writer.write(command+"\n");
+        writer.flush(); 
+    }
+    
     public void sendCommand(Command command) throws IOException {
         writer.write(command.getCommand()+"\n");
         writer.flush(); 
@@ -51,4 +58,5 @@ public class BaxterIO {
         } while(reader.ready() && line != null && !line.trim().equals("--EOF--"));
         return sb.toString();
     }
+    
 }

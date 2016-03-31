@@ -10,8 +10,9 @@ package com.appian.appianbaxter.domainentity;
  * @author serdar
  */
 public class ReturnEntity {
+
     private String commandResult;
-    private Status baxterStatus;
+
     public String getCommandResult() {
         return commandResult;
     }
@@ -20,13 +21,4 @@ public class ReturnEntity {
         this.commandResult = commandResult;
     }
 
-    public Status getBaxterStatus() {
-        return baxterStatus;
-    }
-
-    public void setBaxterStatus(Status baxterStatus) {
-        this.baxterStatus = baxterStatus;
-    }
-    
-    
 }

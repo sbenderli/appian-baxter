@@ -5,6 +5,7 @@ import com.yammer.dropwizard.Service;
 import com.yammer.dropwizard.config.Bootstrap;
 import com.yammer.dropwizard.config.Environment;
 import java.io.File;
+import java.io.IOException;
 
 /**
  * AppianBaxter Service file - Initialization of resources, datasources, etc.
@@ -28,19 +29,15 @@ public class AppianBaxterService extends Service<AppianBaxterConfiguration> {
 
     @Override
     public void run(AppianBaxterConfiguration configuration,
-                    Environment environment) {
-        final String template = configuration.getTemplate();
-        final String defaultName = configuration.getDefaultName();
-        
-        File wd = new File("/home/serdar/ros_ws");
+                    Environment environment) throws IOException {
+        File rosDir = new File(configuration.getRosWsDirectory());
         ProcessBuilder pb = new ProcessBuilder("/bin/bash");
-        pb.directory(wd);
-        //pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
-        //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);    
+        pb.directory(rosDir);   
         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
         pb.redirectErrorStream(true);
-        
-        environment.addResource(new AppianBaxterResource(pb, template, defaultName));
-        environment.addHealthCheck(new TemplateHealthCheck(template));
+        Process process = pb.start();
+        BaxterIO io = new BaxterIO(process);
+        environment.addResource(new AppianBaxterResource(io));
+        environment.addHealthCheck(new TemplateHealthCheck());
     }
 }

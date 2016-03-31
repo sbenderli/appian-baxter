@@ -13,17 +13,11 @@ import org.hibernate.validator.constraints.NotEmpty;
 public class AppianBaxterConfiguration extends Configuration {
     @NotEmpty
     @JsonProperty
-    private String template;
+    private String rosWsDirectory;
 
-    @NotEmpty
-    @JsonProperty
-    private String defaultName = "Stranger";
-
-    public String getTemplate() {
-        return template;
+    public String getRosWsDirectory() {
+        return rosWsDirectory;
     }
 
-    public String getDefaultName() {
-        return defaultName;
-    }
+    
 }
