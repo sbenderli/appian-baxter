@@ -4,6 +4,7 @@ package com.appian.appianbaxter;
 import com.yammer.dropwizard.Service;
 import com.yammer.dropwizard.config.Bootstrap;
 import com.yammer.dropwizard.config.Environment;
+import java.io.File;
 
 /**
  * AppianBaxter Service file - Initialization of resources, datasources, etc.
@@ -30,7 +31,16 @@ public class AppianBaxterService extends Service<AppianBaxterConfiguration> {
                     Environment environment) {
         final String template = configuration.getTemplate();
         final String defaultName = configuration.getDefaultName();
-        environment.addResource(new AppianBaxterResource(template, defaultName));
+        
+        File wd = new File("/home/serdar/ros_ws");
+        ProcessBuilder pb = new ProcessBuilder("/bin/bash");
+        pb.directory(wd);
+        //pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
+        //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);    
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectErrorStream(true);
+        
+        environment.addResource(new AppianBaxterResource(pb, template, defaultName));
         environment.addHealthCheck(new TemplateHealthCheck(template));
     }
 }

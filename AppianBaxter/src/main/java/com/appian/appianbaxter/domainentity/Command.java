@@ -12,14 +12,14 @@ package com.appian.appianbaxter.domainentity;
  */
 public class Command {
     
-    private String commandName;
+    private String command;
 
-    public String getCommandName() {
-        return commandName;
+    public String getCommand() {
+        return command;
     }
 
-    public void setCommandName(String commandName) {
-        this.commandName = commandName;
+    public void setCommand(String command) {
+        this.command = command;
     }
     
     
