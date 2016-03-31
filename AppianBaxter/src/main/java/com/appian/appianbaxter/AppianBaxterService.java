@@ -41,9 +41,11 @@ public class AppianBaxterService extends Service<AppianBaxterConfiguration> {
         File rosDir = new File(configuration.getRosWsDirectory());
         ProcessBuilder pb = new ProcessBuilder("/bin/bash");
         pb.directory(rosDir);   
-        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
         pb.redirectErrorStream(true);
-        Process process = pb.start();
-        return new BaxterIO(process);
+        
+        //Use for debugging - this will make the output appear in the console
+        //only
+        //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        return new BaxterIO(pb);
     }
 }
