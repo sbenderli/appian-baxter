@@ -76,17 +76,17 @@ public class Status {
             if (token.contains("ready")) {
                 status.setReady(token.contains("True"));
             }
-            if (token.contains("enabled")) {
+            else if (token.contains("enabled")) {
                 status.setEnabled(token.contains("True"));
             }
-            if (token.contains("stopped")) {
+            else if (token.contains("stopped")) {
                 status.setStopped(token.contains("True"));
             }
-            if (token.contains("estop_button")) {
+            else if (token.contains("estop_button")) {
                 status.setEstopButton(
                         Integer.parseInt(token.split(":")[1].trim()));
             }
-            if (token.contains("estop_source")) {
+            else if (token.contains("estop_source")) {
                 status.setEstopSource(
                         Integer.parseInt(token.split(":")[1].trim()));
             }

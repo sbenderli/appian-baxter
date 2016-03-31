@@ -1,0 +1,38 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package com.appian.appianbaxter.domainentity;
+
+/**
+ *
+ * @author serdar
+ */
+public class CommandResult {
+
+    private Command command;
+    private String result;
+    
+    public CommandResult(Command command, String result) {
+        this.command = command;
+        this.result = result;
+    }
+
+    public Command getCommand() {
+        return command;
+    }
+
+    public void setCommand(Command command) {
+        this.command = command;
+    }
+
+    public String getResult() {
+        return result;
+    }
+
+    public void setResult(String result) {
+        this.result = result;
+    }
+
+}

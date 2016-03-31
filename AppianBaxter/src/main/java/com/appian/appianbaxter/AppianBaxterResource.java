@@ -1,9 +1,8 @@
 package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Command;
-import com.appian.appianbaxter.domainentity.ReturnEntity;
+import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.domainentity.Status;
-import com.google.common.base.Optional;
 import com.jcraft.jsch.JSchException;
 import com.yammer.metrics.annotation.Timed;
 import javax.ws.rs.POST;
@@ -38,16 +37,17 @@ public class AppianBaxterResource {
     }
 
     private Status getStatus() throws IOException {
-        io.sendCommand("rosrun baxter_tools enable_robot.py -s");
-        return Status.getStatusFromString(io.getResult());
+        CommandResult result = io.sendCommand(
+                "rosrun baxter_tools enable_robot.py -s");
+        return Status.getStatusFromString(result.getResult());
     }
 
     @Path("status/enable")
     @POST
     @Timed
     public Status enable() throws IOException {
-        io.sendCommand("rosrun baxter_tools enable_robot.py -e");
-        io.getResult();
+        CommandResult result = io.sendCommand(
+                "rosrun baxter_tools enable_robot.py -e");
         return getStatus();
     }
 
@@ -55,8 +55,8 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Status disable() throws IOException {
-        io.sendCommand("rosrun baxter_tools enable_robot.py -d");
-        io.getResult();
+        CommandResult result = io.sendCommand(
+                "rosrun baxter_tools enable_robot.py -d");
         return getStatus();
     }
 
@@ -64,20 +64,16 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Status reset() throws IOException {
-        io.sendCommand("rosrun baxter_tools enable_robot.py -r");
-        io.getResult();
+        CommandResult result = io.sendCommand(
+                "rosrun baxter_tools enable_robot.py -r");
         return getStatus();
     }
 //</editor-fold>
 
     @POST
     @Timed
-    public ReturnEntity postCommand(Optional<Command> command)
+    public CommandResult postCommand(Command command)
             throws JSchException, IOException, InterruptedException {
-        io.sendCommand(command.get());
-        ReturnEntity result = new ReturnEntity();
-        result.setCommandResult(io.getResult());
-        return result;
-
+        return io.sendCommand(command);
     }
 }

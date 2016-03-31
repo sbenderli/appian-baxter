@@ -6,6 +6,7 @@
 package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Command;
+import com.appian.appianbaxter.domainentity.CommandResult;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -38,14 +39,26 @@ public class BaxterIO {
         this.writer = writer;
     }
     
-    public void sendCommand(String command) throws IOException {
+    public CommandResult sendCommand(String command) throws IOException {
+        if (command == null || command.isEmpty()) {
+            return new CommandResult(null,null);
+        }
         writer.write(command+"\n");
         writer.flush(); 
+        
+        Command commandObject = new Command();
+        commandObject.setCommand(command);
+        return new CommandResult(commandObject, getResult());
     }
     
-    public void sendCommand(Command command) throws IOException {
+    
+    public CommandResult sendCommand(Command command) throws IOException {
+        if (command == null) {
+            return new CommandResult(null,null);
+        }
         writer.write(command.getCommand()+"\n");
         writer.flush(); 
+        return new CommandResult(command, getResult());
     }
     
     public String getResult() throws IOException {

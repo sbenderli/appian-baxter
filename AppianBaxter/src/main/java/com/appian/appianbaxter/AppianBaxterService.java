@@ -17,27 +17,33 @@ public class AppianBaxterService extends Service<AppianBaxterConfiguration> {
         if(args.length == 0) {
             args = new String[2];
             args[0]="server";
-            args[1]="configs/appian-baxter.yml";
+            args[1]="configs/dev.yml";
         }
         new AppianBaxterService().run(args);
     }
 
     @Override
     public void initialize(Bootstrap<AppianBaxterConfiguration> bootstrap) {
-        bootstrap.setName("appian-baxter");
+        bootstrap.setName("appian-baxter-service");
     }
 
     @Override
     public void run(AppianBaxterConfiguration configuration,
                     Environment environment) throws IOException {
+        environment.addResource(
+                new AppianBaxterResource(getBaxterIO(configuration)));
+        environment.addHealthCheck(new TemplateHealthCheck());
+    }
+    
+    
+    private BaxterIO getBaxterIO(AppianBaxterConfiguration configuration) 
+            throws IOException {
         File rosDir = new File(configuration.getRosWsDirectory());
         ProcessBuilder pb = new ProcessBuilder("/bin/bash");
         pb.directory(rosDir);   
         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
         pb.redirectErrorStream(true);
         Process process = pb.start();
-        BaxterIO io = new BaxterIO(process);
-        environment.addResource(new AppianBaxterResource(io));
-        environment.addHealthCheck(new TemplateHealthCheck());
+        return new BaxterIO(process);
     }
 }
