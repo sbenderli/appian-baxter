@@ -35,3 +35,11 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# JAVA Specific #
+######################
+*target*
+*.war
+*.ear
+
+
