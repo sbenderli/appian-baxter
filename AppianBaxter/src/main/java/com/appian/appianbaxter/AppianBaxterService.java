@@ -42,7 +42,7 @@ public class AppianBaxterService extends Service<AppianBaxterConfiguration> {
         ProcessBuilder pb = new ProcessBuilder("/bin/bash");
         pb.directory(rosDir);   
         pb.redirectErrorStream(true);
-        
+
         //Use for debugging - this will make the output appear in the console
         //only
         //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
