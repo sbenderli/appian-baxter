@@ -70,6 +70,10 @@ public class Status {
      * @return
      */
     public static Status getStatusFromString(String statusString) {
+        if (statusString == null) {
+            return null;
+        }
+        
         Status status = new Status();
         String[] tokens = statusString.split("\n");
         for (String token : tokens) {

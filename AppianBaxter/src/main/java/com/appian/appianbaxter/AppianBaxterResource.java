@@ -29,12 +29,6 @@ public class AppianBaxterResource {
     }
 
     //<editor-fold defaultstate="collapsed" desc="Status">
-//    @Path("error")
-//    @GET
-//    @Timed
-//    public String getErrors() throws IOException {
-//        return io.getErrors();
-//    }
     
     @Path("status")
     @GET
