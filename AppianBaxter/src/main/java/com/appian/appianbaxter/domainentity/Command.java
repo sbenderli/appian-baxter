@@ -13,13 +13,34 @@ package com.appian.appianbaxter.domainentity;
 public class Command {
     
     private String command;
-
+    private boolean waitForResult = true;
+    
+    public Command() {
+    }
+     
+    public Command(String command) {
+        this.command = command;
+    }
+    
+    public Command(String command, boolean waitForResult) {
+        this.command = command;
+        this.waitForResult = waitForResult;
+    }
+    
     public String getCommand() {
         return command;
     }
 
     public void setCommand(String command) {
         this.command = command;
+    }
+
+    public boolean isWaitForResult() {
+        return waitForResult;
+    }
+
+    public void setWaitForResult(boolean waitForResult) {
+        this.waitForResult = waitForResult;
     }
     
     

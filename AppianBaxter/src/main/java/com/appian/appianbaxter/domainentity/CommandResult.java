@@ -11,20 +11,20 @@ package com.appian.appianbaxter.domainentity;
  */
 public class CommandResult {
 
-    private Command command;
+    private Command sentCommand;
     private String result;
     
     public CommandResult(Command command, String result) {
-        this.command = command;
+        this.sentCommand = command;
         this.result = result;
     }
 
-    public Command getCommand() {
-        return command;
+    public Command getSentCommand() {
+        return sentCommand;
     }
 
-    public void setCommand(Command command) {
-        this.command = command;
+    public void setSentCommand(Command sentCommand) {
+        this.sentCommand = sentCommand;
     }
 
     public String getResult() {

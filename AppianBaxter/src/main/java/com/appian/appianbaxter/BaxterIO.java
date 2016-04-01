@@ -16,8 +16,6 @@ import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
 import java.lang.ProcessBuilder.Redirect;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * An object that manages IO to/from baxter
@@ -26,6 +24,7 @@ import java.util.logging.Logger;
  */
 public class BaxterIO {
 
+    private Command lastSentCommand;
     private final boolean USE_TIMEOUT_READ = true;
     private final ProcessBuilder pb;
 
@@ -50,6 +49,11 @@ public class BaxterIO {
         initNewProcess();
     }
 
+    public Command getLastSentCommand() {
+        return lastSentCommand;
+    }
+    
+
     private void initNewProcess() {
         try {
             this.process = pb.start();
@@ -68,29 +72,26 @@ public class BaxterIO {
                 new OutputStreamWriter(process.getOutputStream()));
     }
 
-    public CommandResult sendCommand(String command) {
-        if (command == null || command.isEmpty()) {
+    public CommandResult sendCommand(Command command) {
+        lastSentCommand = command;
+        if (command == null || command.getCommand() == null
+                || command.getCommand().isEmpty()) {
             return new CommandResult(null, null);
         }
 
         try {
-            writer.write(command + "\n");
+            writer.write(command.getCommand() + "\n");
             writer.flush();
         } catch (IOException ex) {
             throw new RuntimeException("Failed to write to process");
         }
 
-        Command commandObject = new Command();
-        commandObject.setCommand(command);
-        return new CommandResult(commandObject,
-                redirectOutput == Redirect.INHERIT ? null : readResult());
+        return new CommandResult(command,
+                redirectOutput == Redirect.INHERIT
+                || !command.isWaitForResult() ? null : readResult());
     }
 
-    public CommandResult sendCommand(Command command) {
-        return sendCommand(command == null ? null : command.getCommand());
-    }
-
-    private String readResult() {
+    public String readResult() {
         String line;
         StringBuilder sb = new StringBuilder();
 

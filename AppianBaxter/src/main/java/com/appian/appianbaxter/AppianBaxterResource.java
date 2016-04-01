@@ -3,14 +3,12 @@ package com.appian.appianbaxter;
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.domainentity.Status;
-import com.jcraft.jsch.JSchException;
 import com.yammer.metrics.annotation.Timed;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.core.MediaType;
-import java.io.IOException;
 import javax.ws.rs.GET;
 
 /**
@@ -39,7 +37,7 @@ public class AppianBaxterResource {
 
     private Status getStatus() {
         CommandResult result = io.sendCommand(
-                "rosrun baxter_tools enable_robot.py -s");
+                new Command("rosrun baxter_tools enable_robot.py -s"));
         return Status.getStatusFromString(result.getResult());
     }
 
@@ -48,7 +46,7 @@ public class AppianBaxterResource {
     @Timed
     public Status enable() {
         CommandResult result = io.sendCommand(
-                "rosrun baxter_tools enable_robot.py -e");
+                new Command("rosrun baxter_tools enable_robot.py -e"));
         return getStatus();
     }
 
@@ -57,7 +55,7 @@ public class AppianBaxterResource {
     @Timed
     public Status disable() {
         CommandResult result = io.sendCommand(
-                "rosrun baxter_tools enable_robot.py -d");
+                new Command("rosrun baxter_tools enable_robot.py -d"));
         return getStatus();
     }
 
@@ -66,7 +64,7 @@ public class AppianBaxterResource {
     @Timed
     public Status reset() {
         CommandResult result = io.sendCommand(
-                "rosrun baxter_tools enable_robot.py -r");
+                new Command("rosrun baxter_tools enable_robot.py -r"));
         return getStatus();
     }
 //</editor-fold>
@@ -75,5 +73,21 @@ public class AppianBaxterResource {
     @Timed
     public CommandResult postCommand(Command command) {
         return io.sendCommand(command);
+    }
+    
+    @Path("io/write")
+    @POST
+    @Timed
+    public CommandResult write(Command command) {
+        return io.sendCommand(command);
+    }
+    
+    @Path("io/read")
+    @POST
+    @Timed
+    public Status read() {
+        CommandResult result = new CommandResult(io.getLastSentCommand(), 
+                io.readResult());
+        return getStatus();
     }
 }
