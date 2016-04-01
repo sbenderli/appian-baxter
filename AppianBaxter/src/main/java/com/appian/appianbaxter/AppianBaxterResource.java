@@ -33,11 +33,11 @@ public class AppianBaxterResource {
     @Path("status")
     @GET
     @Timed
-    public Status getBaxterStatus() throws IOException {
+    public Status getBaxterStatus() {
         return getStatus();
     }
 
-    private Status getStatus() throws IOException {
+    private Status getStatus() {
         CommandResult result = io.sendCommand(
                 "rosrun baxter_tools enable_robot.py -s");
         return Status.getStatusFromString(result.getResult());
@@ -46,7 +46,7 @@ public class AppianBaxterResource {
     @Path("status/enable")
     @POST
     @Timed
-    public Status enable() throws IOException {
+    public Status enable() {
         CommandResult result = io.sendCommand(
                 "rosrun baxter_tools enable_robot.py -e");
         return getStatus();
@@ -55,7 +55,7 @@ public class AppianBaxterResource {
     @Path("status/disable")
     @POST
     @Timed
-    public Status disable() throws IOException {
+    public Status disable() {
         CommandResult result = io.sendCommand(
                 "rosrun baxter_tools enable_robot.py -d");
         return getStatus();
@@ -64,7 +64,7 @@ public class AppianBaxterResource {
     @Path("status/reset")
     @POST
     @Timed
-    public Status reset() throws IOException {
+    public Status reset() {
         CommandResult result = io.sendCommand(
                 "rosrun baxter_tools enable_robot.py -r");
         return getStatus();
@@ -73,8 +73,7 @@ public class AppianBaxterResource {
 
     @POST
     @Timed
-    public CommandResult postCommand(Command command)
-            throws JSchException, IOException, InterruptedException {
+    public CommandResult postCommand(Command command) {
         return io.sendCommand(command);
     }
 }

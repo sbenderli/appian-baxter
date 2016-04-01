@@ -7,17 +7,15 @@ package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
-import com.appian.appianbaxter.domainentity.Status;
 import com.appian.appianbaxter.util.TimeoutInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
 import java.lang.ProcessBuilder.Redirect;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,49 +26,71 @@ import java.util.logging.Logger;
  */
 public class BaxterIO {
 
+    private final boolean USE_TIMEOUT_READ = true;
+    private final ProcessBuilder pb;
+
     private final static int READ_BUFFER = 1024;
-    private final static int READ_TIMEOUT = 10000;
-    private final static int CLOSE_TIMEOUT = 10000;
+    private final static int READ_TIMEOUT = 50000;
+    private final static int PROCESS_CLOSE_TIMEOUT = 10000;
+    private final static int READ_CLOSE_TIMEOUT = 10000;
 
-    private final Process process;
+    private Process process;
 
-    private final BufferedReader reader;
-    private final BufferedWriter writer;
+    private BufferedReader reader;
+    private BufferedWriter writer;
 
     private final Redirect redirectInput;
     private final Redirect redirectOutput;
 
-    public BaxterIO(ProcessBuilder pb) throws IOException {
-        this.process = pb.start();
-        this.reader = new BufferedReader(
-                new InputStreamReader(new TimeoutInputStream(
-                        process.getInputStream(), READ_BUFFER,
-                        READ_TIMEOUT, CLOSE_TIMEOUT)));
-        this.writer = new BufferedWriter(
-                new OutputStreamWriter(process.getOutputStream()));
-
+    public BaxterIO(ProcessBuilder pb) {
+        this.pb = pb;
         redirectInput = pb.redirectInput();
         redirectOutput = pb.redirectOutput();
+
+        initNewProcess();
     }
 
-    public CommandResult sendCommand(String command) throws IOException {
+    private void initNewProcess() {
+        try {
+            this.process = pb.start();
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to start the process");
+        }
+
+        this.reader = new BufferedReader(
+                new InputStreamReader(
+                        USE_TIMEOUT_READ
+                                ? new TimeoutInputStream(
+                                        process.getInputStream(), READ_BUFFER,
+                                        READ_TIMEOUT, READ_CLOSE_TIMEOUT)
+                                : process.getInputStream()));
+        this.writer = new BufferedWriter(
+                new OutputStreamWriter(process.getOutputStream()));
+    }
+
+    public CommandResult sendCommand(String command) {
         if (command == null || command.isEmpty()) {
             return new CommandResult(null, null);
         }
-        writer.write(command + "\n");
-        writer.flush();
+
+        try {
+            writer.write(command + "\n");
+            writer.flush();
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to write to process");
+        }
 
         Command commandObject = new Command();
         commandObject.setCommand(command);
         return new CommandResult(commandObject,
-                redirectOutput == Redirect.INHERIT ? null : getResult());
+                redirectOutput == Redirect.INHERIT ? null : readResult());
     }
 
-    public CommandResult sendCommand(Command command) throws IOException {
+    public CommandResult sendCommand(Command command) {
         return sendCommand(command == null ? null : command.getCommand());
     }
 
-    public String getResult() {
+    private String readResult() {
         String line;
         StringBuilder sb = new StringBuilder();
 
@@ -80,11 +100,28 @@ public class BaxterIO {
                 sb.append(line).append("\n");
                 System.out.println("Stdout: " + line);
             } while (reader.ready() && line != null);
-        } catch (IOException e) {
+        } catch (InterruptedIOException e) {
             //Do something
-            sb.append("IO Exception Occurred").append("\n");
+            sb.append("\n---Read timed out---");
+        } catch (IOException e) {
+            sb.append("IOException occurred: ").append(e.getMessage());
+            //TODO: restart process?
+            restartProcess();
         }
         return sb.toString();
+    }
+
+    private boolean restartProcess() {
+        try {
+            process.destroyForcibly().waitFor(
+                    PROCESS_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+            //TODO: what to do here?
+            return false;
+        }
+
+        initNewProcess();
+        return true;
     }
 
 }
