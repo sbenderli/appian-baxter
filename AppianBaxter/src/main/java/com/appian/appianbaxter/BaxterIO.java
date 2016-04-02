@@ -1,8 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Command;
@@ -15,7 +11,11 @@ import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
 import java.lang.ProcessBuilder.Redirect;
+import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import sun.misc.Signal;
 
 /**
  * An object that manages IO to/from baxter
@@ -34,6 +34,7 @@ public class BaxterIO {
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
     private Process process;
+    private long pid;
 
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -52,7 +53,6 @@ public class BaxterIO {
     public Command getLastSentCommand() {
         return lastSentCommand;
     }
-    
 
     private void initNewProcess() {
         try {
@@ -60,7 +60,7 @@ public class BaxterIO {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to start the process");
         }
-
+        this.pid = getPidOfProcess(this.process);
         this.reader = new BufferedReader(
                 new InputStreamReader(
                         USE_TIMEOUT_READ
@@ -103,7 +103,7 @@ public class BaxterIO {
             } while (reader.ready() && line != null);
         } catch (InterruptedIOException e) {
             //Do something
-            sb.append("\n---Read timed out---");
+            sb.append("---Read timed out---");
         } catch (IOException e) {
             sb.append("IOException occurred: ").append(e.getMessage());
             //TODO: restart process?
@@ -111,18 +111,46 @@ public class BaxterIO {
         }
         return sb.toString();
     }
+    
+    public boolean killRunningProcess() {
+        try {
+            Runtime.getRuntime().exec("kill -SIGINT " + Long.toString(this.pid));
+        } catch (IOException ex) {
+            return false;
+        }
+        return true;
+    }
 
-    private boolean restartProcess() {
+    public boolean restartProcess() {
+        boolean status = killRunningProcess();
         try {
             process.destroyForcibly().waitFor(
                     PROCESS_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
+            //0 means successfully terminated
+            status &= process.exitValue() == 0;
         } catch (InterruptedException ex) {
             //TODO: what to do here?
             return false;
         }
 
         initNewProcess();
-        return true;
+        return status;
+    }
+
+    public static long getPidOfProcess(Process p) {
+        long pid = -1;
+
+        try {
+            if (p.getClass().getName().equals("java.lang.UNIXProcess")) {
+                Field f = p.getClass().getDeclaredField("pid");
+                f.setAccessible(true);
+                pid = f.getLong(p);
+                f.setAccessible(false);
+            }
+        } catch (Exception e) {
+            pid = -1;
+        }
+        return pid;
     }
 
 }

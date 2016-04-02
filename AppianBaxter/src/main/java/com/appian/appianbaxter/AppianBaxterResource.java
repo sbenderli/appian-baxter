@@ -4,12 +4,18 @@ import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.domainentity.Status;
 import com.yammer.metrics.annotation.Timed;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.GET;
+import javax.ws.rs.core.Response;
 
 /**
  *
@@ -27,12 +33,11 @@ public class AppianBaxterResource {
     }
 
     //<editor-fold defaultstate="collapsed" desc="Status">
-    
     @Path("status")
     @GET
     @Timed
-    public Status getBaxterStatus() {
-        return getStatus();
+    public Response getBaxterStatus() {
+        return Response.ok(getStatus()).build();
     }
 
     private Status getStatus() {
@@ -44,50 +49,77 @@ public class AppianBaxterResource {
     @Path("status/enable")
     @POST
     @Timed
-    public Status enable() {
+    public Response enable() {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_tools enable_robot.py -e"));
-        return getStatus();
+        return Response.ok(getStatus()).build();
     }
 
     @Path("status/disable")
     @POST
     @Timed
-    public Status disable() {
+    public Response disable() {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_tools enable_robot.py -d"));
-        return getStatus();
+        return Response.ok(getStatus()).build();
     }
 
     @Path("status/reset")
     @POST
     @Timed
-    public Status reset() {
+    public Response reset() {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_tools enable_robot.py -r"));
-        return getStatus();
+        return Response.ok(getStatus()).build();
     }
 //</editor-fold>
 
     @POST
     @Timed
-    public CommandResult postCommand(Command command) {
-        return io.sendCommand(command);
+    public Response postCommand(Command command) {
+        return Response.ok(io.sendCommand(command)).build();
     }
-    
+
     @Path("io/write")
     @POST
     @Timed
-    public CommandResult write(Command command) {
-        return io.sendCommand(command);
+    public Response write(Command command) {
+        return Response.ok(io.sendCommand(command)).build();
     }
-    
+
     @Path("io/read")
     @POST
     @Timed
-    public Status read() {
-        CommandResult result = new CommandResult(io.getLastSentCommand(), 
+    public Response read() {
+        CommandResult result = new CommandResult(io.getLastSentCommand(),
                 io.readResult());
-        return getStatus();
+        return Response.ok(getStatus()).build();
+    }
+
+    @Path("io/terminate")
+    @POST
+    @Timed
+    public Response terminateProcess() {
+        CommandResult result = new CommandResult(io.getLastSentCommand(),
+                io.restartProcess() ? "Terminated" : "Not Terminated");
+        return Response.ok(result).build();
+    }
+
+    @GET
+    @Path("/image")
+    @Produces("image/jpeg")
+    @Timed
+    public Response getFullImage() throws IOException {
+        BufferedImage image = ImageIO.read(new File("/home/serdar/Downloads/trump.jpg"));
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(image, "jpeg", baos);
+        byte[] imageData = baos.toByteArray();
+
+        // uncomment line below to send non-streamed
+        return Response.ok(imageData).build();
+
+        // uncomment line below to send streamed
+        // return Response.ok(new ByteArrayInputStream(imageData)).build();
     }
 }
