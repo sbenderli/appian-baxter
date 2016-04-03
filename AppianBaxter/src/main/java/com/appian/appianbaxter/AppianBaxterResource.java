@@ -96,12 +96,12 @@ public class AppianBaxterResource {
         return Response.ok(getStatus()).build();
     }
 
-    @Path("io/terminate")
+    @Path("io/killall")
     @POST
     @Timed
     public Response terminateProcess() {
         CommandResult result = new CommandResult(io.getLastSentCommand(),
-                io.restartProcess() ? "Terminated" : "Not Terminated");
+                io.killRunningProcesses());
         return Response.ok(result).build();
     }
 

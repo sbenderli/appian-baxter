@@ -1,9 +1,9 @@
-
 package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.util.TimeoutInputStream;
+import com.google.common.primitives.Ints;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -12,10 +12,9 @@ import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
 import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import sun.misc.Signal;
 
 /**
  * An object that manages IO to/from baxter
@@ -34,7 +33,7 @@ public class BaxterIO {
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
     private Process process;
-    private long pid;
+    private int parentPid;
 
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -60,7 +59,7 @@ public class BaxterIO {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to start the process");
         }
-        this.pid = getPidOfProcess(this.process);
+        this.parentPid = getPidOfProcess(this.process);
         this.reader = new BufferedReader(
                 new InputStreamReader(
                         USE_TIMEOUT_READ
@@ -79,12 +78,7 @@ public class BaxterIO {
             return new CommandResult(null, null);
         }
 
-        try {
-            writer.write(command.getCommand() + "\n");
-            writer.flush();
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed to write to process");
-        }
+        write(command.getCommand(), this.writer);
 
         return new CommandResult(command,
                 redirectOutput == Redirect.INHERIT
@@ -92,18 +86,107 @@ public class BaxterIO {
     }
 
     public String readResult() {
+        return read(this.reader);
+    }
+
+    public String killRunningProcesses() {
+        StringBuilder sb = new StringBuilder("Killed following processes: ");
+        List<Integer> subProcesPids = new ArrayList<>();
+
+        //Start a new process to get sub pids and kill them
+        //We can't do this from main process because it might be
+        //running a process currently
+        try {
+            Process tempProcess = pb.start();
+            BufferedReader debugReader = new BufferedReader(
+                    new InputStreamReader(tempProcess.getInputStream()));
+            BufferedWriter debugWriter = new BufferedWriter(
+                    new OutputStreamWriter(tempProcess.getOutputStream()));
+
+            //send the command that will get sub pids
+            //returned string will look like this:
+            //PID
+            //1234
+            //5678
+            //7890
+            String[] tokens = writeAndRead(
+                    String.format("ps --ppid %s | awk '{ print $1 }'",
+                            this.parentPid), debugWriter, debugReader)
+                    .split(System.getProperty("line.separator"));
+            for (String token : tokens) {
+                Integer temp = Ints.tryParse(token);
+                if (temp != null) {
+                    subProcesPids.add(temp);
+                }
+            }
+
+            //Kill each process
+            for (Integer pid : subProcesPids) {
+                String pidName = writeAndRead(
+                        String.format("ps -p %s -o command=", pid),
+                        debugWriter, debugReader).trim();
+                sb.append(System.getProperty("line.separator"))
+                        .append(String.format("%s (%s)", pidName, pid));
+
+                write(String.format("kill -int %s", pid),
+                        debugWriter);
+            }
+
+            //destroy the temp process
+            tempProcess.destroy();
+
+            return sb.toString();
+        } catch (IOException ex) {
+            return "Something went wrong. Partially " + sb.toString();
+        }
+    }
+
+    public boolean restartProcess() {
+        killRunningProcesses();
+        try {
+            process.destroyForcibly().waitFor(
+                    PROCESS_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
+            //0 means successfully terminated
+            process.exitValue();
+        } catch (InterruptedException ex) {
+            //TODO: what to do here?
+            return false;
+        }
+
+        initNewProcess();
+        return true;
+    }
+
+    //<editor-fold defaultstate="collapsed" desc="Private methods">
+    private String writeAndRead(String command,
+            BufferedWriter bufferedWriter, BufferedReader bufferedReader) {
+        write(command, bufferedWriter);
+        return read(bufferedReader);
+    }
+
+    private void write(String command,
+            BufferedWriter bufferedWriter) {
+        try {
+            bufferedWriter.write(command + System.getProperty("line.separator"));
+            bufferedWriter.flush();
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to write to process");
+        }
+    }
+
+    private String read(BufferedReader bufferedReader) {
         String line;
         StringBuilder sb = new StringBuilder();
 
         try {
             do {
-                line = reader.readLine();
-                sb.append(line).append("\n");
+                line = bufferedReader.readLine();
+                sb.append(System.getProperty("line.separator")).append(line);
                 System.out.println("Stdout: " + line);
-            } while (reader.ready() && line != null);
+            } while (bufferedReader.ready() && line != null);
         } catch (InterruptedIOException e) {
             //Do something
-            sb.append("---Read timed out---");
+            sb.append("---Read timed eout---");
         } catch (IOException e) {
             sb.append("IOException occurred: ").append(e.getMessage());
             //TODO: restart process?
@@ -111,40 +194,15 @@ public class BaxterIO {
         }
         return sb.toString();
     }
-    
-    public boolean killRunningProcess() {
-        try {
-            Runtime.getRuntime().exec("kill -SIGINT " + Long.toString(this.pid));
-        } catch (IOException ex) {
-            return false;
-        }
-        return true;
-    }
 
-    public boolean restartProcess() {
-        boolean status = killRunningProcess();
-        try {
-            process.destroyForcibly().waitFor(
-                    PROCESS_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
-            //0 means successfully terminated
-            status &= process.exitValue() == 0;
-        } catch (InterruptedException ex) {
-            //TODO: what to do here?
-            return false;
-        }
-
-        initNewProcess();
-        return status;
-    }
-
-    public static long getPidOfProcess(Process p) {
-        long pid = -1;
+    private static int getPidOfProcess(Process p) {
+        int pid = -1;
 
         try {
             if (p.getClass().getName().equals("java.lang.UNIXProcess")) {
                 Field f = p.getClass().getDeclaredField("pid");
                 f.setAccessible(true);
-                pid = f.getLong(p);
+                pid = f.getInt(p);
                 f.setAccessible(false);
             }
         } catch (Exception e) {
@@ -152,5 +210,6 @@ public class BaxterIO {
         }
         return pid;
     }
+//</editor-fold>
 
 }
