@@ -1,5 +1,6 @@
 package com.appian.appianbaxter;
 
+import com.appian.appianbaxter.domainentity.Camera;
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.domainentity.Status;
@@ -7,6 +8,7 @@ import com.yammer.metrics.annotation.Timed;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.ws.rs.POST;
@@ -16,6 +18,7 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.GET;
 import javax.ws.rs.core.Response;
+import org.joda.time.DateTime;
 
 /**
  *
@@ -106,10 +109,10 @@ public class AppianBaxterResource {
     }
 
     @GET
-    @Path("/image")
+    @Path("/image/test")
     @Produces("image/jpeg")
     @Timed
-    public Response getFullImage() throws IOException {
+    public Response getTestImage() throws IOException {
         BufferedImage image = ImageIO.read(new File("/home/serdar/Downloads/trump.jpg"));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -122,4 +125,85 @@ public class AppianBaxterResource {
         // uncomment line below to send streamed
         // return Response.ok(new ByteArrayInputStream(imageData)).build();
     }
+
+    @GET
+    @Path("/camera/left")
+    @Produces("image/jpeg")
+    @Timed
+    public Response getImageFromLeftCamera()
+            throws InterruptedException, IOException {
+        return Response.ok(getImageFromCamera(Camera.LEFT)).build();
+    }
+    
+    @GET
+    @Path("/camera/right")
+    @Produces("image/jpeg")
+    @Timed
+    public Response getImageFromRightCamera()
+            throws InterruptedException, IOException {
+        return Response.ok(getImageFromCamera(Camera.RIGHT)).build();
+    }
+    
+    @GET
+    @Path("/camera/head")
+    @Produces("image/jpeg")
+    @Timed
+    public Response getImageFromHeadCamera()
+            throws InterruptedException, IOException {
+        return Response.ok(getImageFromCamera(Camera.HEAD)).build();
+    }
+
+    private byte[] getImageFromCamera(Camera camera)
+            throws IOException, InterruptedException {
+        DateTime now = DateTime.now();
+
+        //Open this camera and close the other two
+        String setupCameras = "rosrun baxter_tools camera_control.py -c %s "
+                + "&& rosrun baxter_tools camera_control.py -c %s "
+                + "&& rosrun baxter_tools camera_control.py -o %s -r 1280x800";
+        switch (camera) {
+            case LEFT:
+                setupCameras = String.format(setupCameras,
+                        Camera.HEAD, Camera.RIGHT, Camera.LEFT);
+                break;
+            case RIGHT:
+                setupCameras = String.format(setupCameras,
+                        Camera.HEAD, Camera.LEFT, Camera.RIGHT);
+                break;
+            case HEAD:
+                setupCameras = String.format(setupCameras,
+                        Camera.LEFT, Camera.RIGHT, Camera.HEAD);
+                break;
+            default:
+                throw new AssertionError(camera.name());
+        }
+        //Send command and wait for result
+        CommandResult result = io.sendCommand(new Command(setupCameras, true));
+
+        //Make a folder for this request and start capturing images
+        String imageFolderPath = String.format("%s/images/%s",
+                io.getFolderPath(), now.getMillis());
+        String command = String.format("cd %s "
+                + "&& rosrun image_view extract_images"
+                + " image:=/cameras/%s/image _sec_per_frame:=10",
+                imageFolderPath, Camera.LEFT);
+
+        File imageFolder = FileUtils.makeDirectory(imageFolderPath);
+        if (imageFolder == null) {
+            throw new RuntimeException("Could not create directory.");
+        }
+
+        //start taking pictures
+        io.sendCommand(new Command(command, false));
+        //wait until a picture is taken
+        File image = FileUtils.getLastImage(imageFolder);
+        while (image == null) {
+            Thread.sleep(100);
+            image = FileUtils.getLastImage(imageFolder);
+        }
+        io.killRunningProcesses();
+        
+        return FileUtils.getImageDataToSend(image);
+    }
+
 }

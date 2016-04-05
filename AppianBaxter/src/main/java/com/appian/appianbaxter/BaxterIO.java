@@ -14,7 +14,6 @@ import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * An object that manages IO to/from baxter
@@ -23,13 +22,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class BaxterIO {
 
-    private Command lastSentCommand;
     private final boolean USE_TIMEOUT_READ = true;
     private final ProcessBuilder pb;
+    private Command lastSentCommand;
 
     private final static int READ_BUFFER = 1024;
     private final static int READ_TIMEOUT = 50000;
-    private final static int PROCESS_CLOSE_TIMEOUT = 10000;
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
     private Process process;
@@ -40,6 +38,8 @@ public class BaxterIO {
 
     private final Redirect redirectInput;
     private final Redirect redirectOutput;
+    
+    public static String START_FOLDER;
 
     public BaxterIO(ProcessBuilder pb) {
         this.pb = pb;
@@ -47,6 +47,10 @@ public class BaxterIO {
         redirectOutput = pb.redirectOutput();
 
         initNewProcess();
+    }
+    
+    public String getFolderPath() {
+        return pb.directory().getAbsolutePath();
     }
 
     public Command getLastSentCommand() {
@@ -143,16 +147,7 @@ public class BaxterIO {
 
     public boolean restartProcess() {
         killRunningProcesses();
-        try {
-            process.destroyForcibly().waitFor(
-                    PROCESS_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
-            //0 means successfully terminated
-            process.exitValue();
-        } catch (InterruptedException ex) {
-            //TODO: what to do here?
-            return false;
-        }
-
+        process.destroy();
         initNewProcess();
         return true;
     }
