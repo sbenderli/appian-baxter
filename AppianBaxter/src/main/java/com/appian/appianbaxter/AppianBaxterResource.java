@@ -110,7 +110,7 @@ public class AppianBaxterResource {
                 io.getLastSentCommand(pid),
                 io.killProcessAndItsChildren(pid),
                 pid);
-        
+        result.setSuccess(true);
         return Response.ok(result).build();
     }
 
@@ -162,7 +162,7 @@ public class AppianBaxterResource {
     private Status getStatus() {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_tools enable_robot.py -s"));
-        return Status.getStatusFromString(result.getResult());
+        return Status.getStatusFromString(result.getMessage());
     }
 
     private byte[] getImageFromCamera(Camera camera)
@@ -172,7 +172,7 @@ public class AppianBaxterResource {
         //is camera enabled?
         String result = io.sendCommand(
                 new Command("rosrun baxter_tools camera_control.py -l", true))
-                .getResult();
+                .getMessage();
 
         CameraStatus cameraStatus = CameraStatus.getStatusFromString(result);
         if (!cameraStatus.isCameraOpen(camera)) {
@@ -187,7 +187,7 @@ public class AppianBaxterResource {
         String command = String.format("cd %s "
                 + "&& rosrun image_view extract_images"
                 + " image:=/cameras/%s/image _sec_per_frame:=0.1",
-                imageFolderPath, Camera.LEFT);
+                imageFolderPath, camera);
 
         File imageFolder = FileUtils.makeDirectory(imageFolderPath);
         if (imageFolder == null) {
@@ -198,9 +198,12 @@ public class AppianBaxterResource {
         io.sendCommand(new Command(command, false));
         //wait until a picture is taken
         File image = FileUtils.getLastImage(imageFolder);
-        while (image == null) {
+        
+        int count = 0;
+        while (image == null || count < 10) {
             Thread.sleep(100);
             image = FileUtils.getLastImage(imageFolder);
+            count++;
         }
 
         return FileUtils.getImageDataToSend(image);

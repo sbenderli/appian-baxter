@@ -12,16 +12,19 @@ package com.appian.appianbaxter.domainentity;
 public class CommandResult {
 
     private Command sentCommand;
-    private String result;
+    private boolean success;
+    private String message;
     private Integer pid;
     
     public CommandResult() {
     
     }
     
-    public CommandResult(Command command, String result, Integer pid) {
+    public CommandResult(Command command, 
+            String result, Integer pid) {
+        this.success = success;
         this.sentCommand = command;
-        this.result = result;
+        this.message = result;
         this.pid = pid;
     }
 
@@ -33,12 +36,12 @@ public class CommandResult {
         this.sentCommand = sentCommand;
     }
 
-    public String getResult() {
-        return result;
+    public String getMessage() {
+        return message;
     }
 
-    public void setResult(String result) {
-        this.result = result;
+    public void setMessage(String message) {
+        this.message = message;
     }
 
     public Integer getPid() {
@@ -48,5 +51,14 @@ public class CommandResult {
     public void setPid(Integer pid) {
         this.pid = pid;
     }
+
+    public boolean isSuccess() {
+        return success;
+    }
+
+    public void setSuccess(boolean success) {
+        this.success = success;
+    }
+    
     
 }

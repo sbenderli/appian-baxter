@@ -79,16 +79,16 @@ public class BaxterIO {
         result.setPid(getProcessPid(process));
         result.setSentCommand(command);
         if (command.isWaitForResult()) {
-            result.setResult(read(process));
+            result.setMessage(read(process));
             //Kick-off kill process
             new Thread(() -> this.killProcessAndItsChildren(process)).start();
         } else {
             commandMap.put(result.getPid(), command);
-            result.setResult("You are doing an async operation. "
+            result.setMessage("You are doing an async operation. "
                     + "Call read/{pid} endpoint to get the result of "
                     + "your command.");
         }
-
+        result.setSuccess(true);
         return result;
     }
 
@@ -101,7 +101,7 @@ public class BaxterIO {
         Process process = processMap.get(pid);
         result.setPid(pid);
         result.setSentCommand(commandMap.get(pid));
-        result.setResult(read(process));
+        result.setMessage(read(process));
         return result;
     }
 
@@ -148,24 +148,32 @@ public class BaxterIO {
             writeAndRead(String.format("kill -int %s", pid), tempProcess);
         }
         //destroy the temp process
-        tempProcess.destroy();
-        readerMap.remove(processPid);
-        writerMap.remove(processPid);
-
+        destroyProcess(tempProcess);
+        destroyProcess(process);
         sb.append(System.getProperty("line.separator"))
                 .append(String.format("Successfully killed "
                         + "parent process: (%s)", processPid));
 
-        process.destroy();
-        processMap.remove(processPid);
+        
 
         String result = sb.toString();
         System.out.println(result);
         return result;
     }
     
+    
+    
     //<editor-fold defaultstate="collapsed" desc="Private methods">
-
+    private void destroyProcess(Process process) {
+        Integer pid = getProcessPid(process);
+        readerMap.remove(pid);
+        writerMap.remove(pid);
+        processMap.remove(pid);
+        commandMap.remove(pid);
+        process.destroy();
+    }
+    
+    
     private String writeAndRead(String command, Process process) {
         write(command, process);
         return read(process);
