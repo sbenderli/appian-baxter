@@ -14,8 +14,6 @@ import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * An object that manages IO to/from baxter

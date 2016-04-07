@@ -11,31 +11,14 @@
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
     
-    <repositories>
-        <repository>
-          <id>my-local-repo</id>
-          <url>file://${basedir}/my-repo</url>
-        </repository>
-     </repositories>
-    
+
     <dependencies>
         <dependency>
             <groupId>com.yammer.dropwizard</groupId>
             <artifactId>dropwizard-core</artifactId>
             <version>0.6.1</version>
         </dependency>
-        <dependency>
-            <groupId>com.jcraft</groupId>
-            <artifactId>jsch</artifactId>
-            <version>0.1.53</version>
-        </dependency>
-        <dependency>
-            <groupId>com.robot</groupId>
-            <artifactId>robotraconteur</artifactId>
-            <version>0.5</version>
-<!--            <scope>system</scope>
-            <systemPath>${project.basedir}/localjars/RobotRaconteur.jar</systemPath>-->
-        </dependency>
+
     </dependencies>
     
     <build>
