@@ -17,6 +17,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.GET;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
 import org.joda.time.DateTime;
 
@@ -41,12 +42,6 @@ public class AppianBaxterResource {
     @Timed
     public Response getBaxterStatus() {
         return Response.ok(getStatus()).build();
-    }
-
-    private Status getStatus() {
-        CommandResult result = io.sendCommand(
-                new Command("rosrun baxter_tools enable_robot.py -s"));
-        return Status.getStatusFromString(result.getResult());
     }
 
     @Path("status/enable")
@@ -90,30 +85,32 @@ public class AppianBaxterResource {
         return Response.ok(io.sendCommand(command)).build();
     }
 
-    @Path("io/read")
-    @POST
+    @Path("io/read/{pid}")
+    @GET
     @Timed
-    public Response read() {
-        CommandResult result = new CommandResult(io.getLastSentCommand(),
-                io.readResult());
-        return Response.ok(getStatus()).build();
+    public Response read(@PathParam("pid") Integer pid) {
+        CommandResult result = io.readResult(pid);
+        return Response.ok(result).build();
     }
-    
-    @Path("io/clearbuffer")
+//    
+//    @Path("io/clearbuffer")
+//    @POST
+//    @Timed
+//    public Response clearBuffer() {
+//        return Response
+//                .ok("Cleared buffer. Contents were: " + io.readResult())
+//                .build();
+//    }
+//
+    @Path("io/terminate/{pid}")
     @POST
     @Timed
-    public Response clearBuffer() {
-        return Response
-                .ok("Cleared buffer. Contents were: " + io.readResult())
-                .build();
-    }
-
-    @Path("io/killall")
-    @POST
-    @Timed
-    public Response terminateProcess() {
-        CommandResult result = new CommandResult(io.getLastSentCommand(),
-                io.killRunningProcesses());
+    public Response terminateProcess(@PathParam("pid") Integer pid) {      
+        CommandResult result = new CommandResult(
+                io.getLastSentCommand(pid),
+                io.killProcessAndItsChildren(pid),
+                pid);
+        
         return Response.ok(result).build();
     }
 
@@ -161,20 +158,26 @@ public class AppianBaxterResource {
             throws InterruptedException, IOException {
         return Response.ok(getImageFromCamera(Camera.HEAD)).build();
     }
+    
+    private Status getStatus() {
+        CommandResult result = io.sendCommand(
+                new Command("rosrun baxter_tools enable_robot.py -s"));
+        return Status.getStatusFromString(result.getResult());
+    }
 
     private byte[] getImageFromCamera(Camera camera)
             throws IOException, InterruptedException {
         DateTime now = DateTime.now();
 
         //is camera enabled?
-        String statusString = io.sendCommand(
+        String result = io.sendCommand(
                 new Command("rosrun baxter_tools camera_control.py -l", true))
                 .getResult();
 
-        CameraStatus cameraStatus = CameraStatus.getStatusFromString(statusString);
+        CameraStatus cameraStatus = CameraStatus.getStatusFromString(result);
         if (!cameraStatus.isCameraOpen(camera)) {
             //Send command and wait for result
-            CommandResult result = io.sendCommand(
+            io.sendCommand(
                     new Command(getEnableCameraCommand(camera), true));
         }
 
@@ -199,7 +202,6 @@ public class AppianBaxterResource {
             Thread.sleep(100);
             image = FileUtils.getLastImage(imageFolder);
         }
-        io.killRunningProcesses();
 
         return FileUtils.getImageDataToSend(image);
     }

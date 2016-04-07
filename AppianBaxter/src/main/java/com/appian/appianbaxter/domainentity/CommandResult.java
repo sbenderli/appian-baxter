@@ -13,10 +13,16 @@ public class CommandResult {
 
     private Command sentCommand;
     private String result;
+    private Integer pid;
     
-    public CommandResult(Command command, String result) {
+    public CommandResult() {
+    
+    }
+    
+    public CommandResult(Command command, String result, Integer pid) {
         this.sentCommand = command;
         this.result = result;
+        this.pid = pid;
     }
 
     public Command getSentCommand() {
@@ -35,4 +41,12 @@ public class CommandResult {
         this.result = result;
     }
 
+    public Integer getPid() {
+        return pid;
+    }
+
+    public void setPid(Integer pid) {
+        this.pid = pid;
+    }
+    
 }

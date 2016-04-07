@@ -10,10 +10,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
 import java.io.OutputStreamWriter;
-import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An object that manages IO to/from baxter
@@ -22,147 +23,157 @@ import java.util.List;
  */
 public class BaxterIO {
 
-    private final boolean USE_TIMEOUT_READ = true;
+    private static final boolean USE_TIMEOUT_READ = true;
     private final ProcessBuilder pb;
-    private Command lastSentCommand;
 
     private final static int READ_BUFFER = 1024;
     private final static int READ_TIMEOUT = 10000;
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
-    private Process process;
-    private int parentPid;
+    private Map<Integer, Process> processMap = new HashMap<>();
+    private Map<Integer, Command> commandMap = new HashMap<>();
+    private Map<Integer, BufferedReader> readerMap = new HashMap<>();
+    private Map<Integer, BufferedWriter> writerMap = new HashMap<>();
 
-    private BufferedReader reader;
-    private BufferedWriter writer;
-
-    private final Redirect redirectInput;
-    private final Redirect redirectOutput;
-    
     public static String START_FOLDER;
 
     public BaxterIO(ProcessBuilder pb) {
         this.pb = pb;
-        redirectInput = pb.redirectInput();
-        redirectOutput = pb.redirectOutput();
-
-        initNewProcess();
     }
-    
+
     public String getFolderPath() {
         return pb.directory().getAbsolutePath();
     }
 
-    public Command getLastSentCommand() {
-        return lastSentCommand;
-    }
-
-    private void initNewProcess() {
+    public Process getNewProcess() {
+        Process process;
         try {
-            this.process = pb.start();
+            process = pb.start();
+            Integer pid = getProcessPid(process);
+            processMap.put(pid, process);
+            readerMap.put(pid, new BufferedReader(
+                    new InputStreamReader(
+                            USE_TIMEOUT_READ
+                                    ? new TimeoutInputStream(
+                                            process.getInputStream(), READ_BUFFER,
+                                            READ_TIMEOUT, READ_CLOSE_TIMEOUT)
+                                    : process.getInputStream())));
+            writerMap.put(pid, new BufferedWriter(
+                    new OutputStreamWriter(process.getOutputStream())));
+            return process;
         } catch (IOException ex) {
             throw new RuntimeException("Failed to start the process");
         }
-        this.parentPid = getPidOfProcess(this.process);
-        this.reader = new BufferedReader(
-                new InputStreamReader(
-                        USE_TIMEOUT_READ
-                                ? new TimeoutInputStream(
-                                        process.getInputStream(), READ_BUFFER,
-                                        READ_TIMEOUT, READ_CLOSE_TIMEOUT)
-                                : process.getInputStream()));
-        this.writer = new BufferedWriter(
-                new OutputStreamWriter(process.getOutputStream()));
     }
 
     public CommandResult sendCommand(Command command) {
-        lastSentCommand = command;
+        //lastSentCommand = command;
         if (command == null || command.getCommand() == null
                 || command.getCommand().isEmpty()) {
-            return new CommandResult(null, null);
+            return new CommandResult(null, null, null);
+        }
+        Process process = getNewProcess();
+        write(command.getCommand(), process);
+
+        CommandResult result = new CommandResult();
+        result.setPid(getProcessPid(process));
+        result.setSentCommand(command);
+        if (command.isWaitForResult()) {
+            result.setResult(read(process));
+            //Kick-off kill process
+            new Thread(() -> this.killProcessAndItsChildren(process)).start();
+        } else {
+            commandMap.put(result.getPid(), command);
+            result.setResult("You are doing an async operation. "
+                    + "Call read/{pid} endpoint to get the result of "
+                    + "your command.");
         }
 
-        write(command.getCommand(), this.writer);
-
-        return new CommandResult(command,
-                redirectOutput == Redirect.INHERIT
-                || !command.isWaitForResult() ? null : readResult());
+        return result;
     }
 
-    public String readResult() {
-        return read(this.reader);
+    public Command getLastSentCommand(Integer pid) {
+        return commandMap.get(pid);    
+    }
+    
+    public CommandResult readResult(Integer pid) {
+        CommandResult result = new CommandResult();
+        Process process = processMap.get(pid);
+        result.setPid(pid);
+        result.setSentCommand(commandMap.get(pid));
+        result.setResult(read(process));
+        return result;
     }
 
-    public String killRunningProcesses() {
-        StringBuilder sb = new StringBuilder("Killed following processes: ");
+    public String killProcessAndItsChildren(Integer pid) {
+        return killProcessAndItsChildren(processMap.get(pid));
+    }
+
+    public String killProcessAndItsChildren(Process process) {
+        Integer processPid = getProcessPid(process);
+        StringBuilder sb = new StringBuilder(
+                "Killed following child processes: ");
         List<Integer> subProcesPids = new ArrayList<>();
 
         //Start a new process to get sub pids and kill them
         //We can't do this from main process because it might be
         //running a process currently
-        try {
-            Process tempProcess = pb.start();
-            BufferedReader debugReader = new BufferedReader(
-                    new InputStreamReader(tempProcess.getInputStream()));
-            BufferedWriter debugWriter = new BufferedWriter(
-                    new OutputStreamWriter(tempProcess.getOutputStream()));
+        Process tempProcess = getNewProcess();
 
-            //send the command that will get sub pids
-            //returned string will look like this:
-            //PID
-            //1234
-            //5678
-            //7890
-            String[] tokens = writeAndRead(
-                    String.format("ps --ppid %s | awk '{ print $1 }'",
-                            this.parentPid), debugWriter, debugReader)
-                    .split(System.getProperty("line.separator"));
-            for (String token : tokens) {
-                Integer temp = Ints.tryParse(token);
-                if (temp != null) {
-                    subProcesPids.add(temp);
-                }
+        //send the command that will get sub pids
+        //returned string will look like this:
+        //PID
+        //1234
+        //5678
+        //7890
+        String[] tokens = writeAndRead(
+                String.format("ps --ppid %s | awk '{ print $1 }'",
+                        processPid), tempProcess)
+                .split(System.getProperty("line.separator"));
+        for (String token : tokens) {
+            Integer temp = Ints.tryParse(token);
+            if (temp != null) {
+                subProcesPids.add(temp);
             }
-
-            //Kill each process
-            for (Integer pid : subProcesPids) {
-                String pidName = writeAndRead(
-                        String.format("ps -p %s -o command=", pid),
-                        debugWriter, debugReader).trim();
-                sb.append(System.getProperty("line.separator"))
-                        .append(String.format("%s (%s)", pidName, pid));
-
-                writeAndRead(String.format("kill -int %s", pid),
-                        debugWriter, debugReader);
-            }
-            //destroy the temp process
-            tempProcess.destroy();
-
-            String result = sb.toString();
-            System.out.println(result);
-            return result;
-        } catch (IOException ex) {
-            return "Something went wrong. Partially " + sb.toString();
         }
-    }
 
-    public boolean restartProcess() {
-        killRunningProcesses();
+        //Kill each process
+        for (Integer pid : subProcesPids) {
+//            String pidName = writeAndRead(
+//                    String.format("ps -p %s -o command=", pid), tempProcess)
+//                    .trim();
+//            sb.append(System.getProperty("line.separator"))
+//                    .append(String.format("%s (%s)", pidName, pid));
+            sb.append(String.format("%s,", pid));
+            writeAndRead(String.format("kill -int %s", pid), tempProcess);
+        }
+        //destroy the temp process
+        tempProcess.destroy();
+        readerMap.remove(processPid);
+        writerMap.remove(processPid);
+
+        sb.append(System.getProperty("line.separator"))
+                .append(String.format("Successfully killed "
+                        + "parent process: (%s)", processPid));
+
         process.destroy();
-        initNewProcess();
-        return true;
-    }
+        processMap.remove(processPid);
 
+        String result = sb.toString();
+        System.out.println(result);
+        return result;
+    }
+    
     //<editor-fold defaultstate="collapsed" desc="Private methods">
-    private String writeAndRead(String command,
-            BufferedWriter bufferedWriter, BufferedReader bufferedReader) {
-        write(command, bufferedWriter);
-        return read(bufferedReader);
+
+    private String writeAndRead(String command, Process process) {
+        write(command, process);
+        return read(process);
     }
 
-    private void write(String command,
-            BufferedWriter bufferedWriter) {
+    private void write(String command, Process process) {
         try {
+            BufferedWriter bufferedWriter = writerMap.get(getProcessPid(process));
             bufferedWriter.write(command + System.getProperty("line.separator"));
             bufferedWriter.flush();
         } catch (IOException ex) {
@@ -170,31 +181,29 @@ public class BaxterIO {
         }
     }
 
-    private String read(BufferedReader bufferedReader) {
+    private String read(Process process) {
         String line = "";
         StringBuilder sb = new StringBuilder();
-
+        BufferedReader bufferedReader = readerMap.get(getProcessPid(process));
         try {
             //Read buffer is not always immediately ready after a write
             //Wait a modest amount before checking for the buffer
-            Thread.sleep(100);
-            while (bufferedReader.ready()) {
+            //Thread.sleep(1000);
+            do {
                 line = bufferedReader.readLine();
                 sb.append(System.getProperty("line.separator")).append(line);
                 System.out.println("Stdout: " + line);
-            } 
+            } while (bufferedReader.ready());
         } catch (InterruptedIOException e) {
             //Do something
             sb.append("---Read timed eout---");
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             sb.append("IOException occurred: ").append(e.getMessage());
-            //TODO: restart process?
-            restartProcess();
         }
         return sb.toString();
     }
 
-    private static int getPidOfProcess(Process p) {
+    private static int getProcessPid(Process p) {
         int pid = -1;
 
         try {
