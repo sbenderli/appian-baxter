@@ -14,6 +14,8 @@ import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * An object that manages IO to/from baxter
@@ -27,7 +29,7 @@ public class BaxterIO {
     private Command lastSentCommand;
 
     private final static int READ_BUFFER = 1024;
-    private final static int READ_TIMEOUT = 50000;
+    private final static int READ_TIMEOUT = 10000;
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
     private Process process;
@@ -132,14 +134,15 @@ public class BaxterIO {
                 sb.append(System.getProperty("line.separator"))
                         .append(String.format("%s (%s)", pidName, pid));
 
-                write(String.format("kill -int %s", pid),
-                        debugWriter);
+                writeAndRead(String.format("kill -int %s", pid),
+                        debugWriter, debugReader);
             }
-
             //destroy the temp process
             tempProcess.destroy();
 
-            return sb.toString();
+            String result = sb.toString();
+            System.out.println(result);
+            return result;
         } catch (IOException ex) {
             return "Something went wrong. Partially " + sb.toString();
         }
@@ -170,19 +173,22 @@ public class BaxterIO {
     }
 
     private String read(BufferedReader bufferedReader) {
-        String line;
+        String line = "";
         StringBuilder sb = new StringBuilder();
 
         try {
-            do {
+            //Read buffer is not always immediately ready after a write
+            //Wait a modest amount before checking for the buffer
+            Thread.sleep(100);
+            while (bufferedReader.ready()) {
                 line = bufferedReader.readLine();
                 sb.append(System.getProperty("line.separator")).append(line);
                 System.out.println("Stdout: " + line);
-            } while (bufferedReader.ready() && line != null);
+            } 
         } catch (InterruptedIOException e) {
             //Do something
             sb.append("---Read timed eout---");
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             sb.append("IOException occurred: ").append(e.getMessage());
             //TODO: restart process?
             restartProcess();

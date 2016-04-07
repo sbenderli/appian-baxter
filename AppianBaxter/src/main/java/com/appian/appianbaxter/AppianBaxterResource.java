@@ -1,6 +1,7 @@
 package com.appian.appianbaxter;
 
 import com.appian.appianbaxter.domainentity.Camera;
+import com.appian.appianbaxter.domainentity.CameraStatus;
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
 import com.appian.appianbaxter.domainentity.Status;
@@ -8,7 +9,6 @@ import com.yammer.metrics.annotation.Timed;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.ws.rs.POST;
@@ -98,6 +98,15 @@ public class AppianBaxterResource {
                 io.readResult());
         return Response.ok(getStatus()).build();
     }
+    
+    @Path("io/clearbuffer")
+    @POST
+    @Timed
+    public Response clearBuffer() {
+        return Response
+                .ok("Cleared buffer. Contents were: " + io.readResult())
+                .build();
+    }
 
     @Path("io/killall")
     @POST
@@ -134,7 +143,7 @@ public class AppianBaxterResource {
             throws InterruptedException, IOException {
         return Response.ok(getImageFromCamera(Camera.LEFT)).build();
     }
-    
+
     @GET
     @Path("/camera/right")
     @Produces("image/jpeg")
@@ -143,7 +152,7 @@ public class AppianBaxterResource {
             throws InterruptedException, IOException {
         return Response.ok(getImageFromCamera(Camera.RIGHT)).build();
     }
-    
+
     @GET
     @Path("/camera/head")
     @Produces("image/jpeg")
@@ -157,35 +166,24 @@ public class AppianBaxterResource {
             throws IOException, InterruptedException {
         DateTime now = DateTime.now();
 
-        //Open this camera and close the other two
-        String setupCameras = "rosrun baxter_tools camera_control.py -c %s "
-                + "&& rosrun baxter_tools camera_control.py -c %s "
-                + "&& rosrun baxter_tools camera_control.py -o %s -r 1280x800";
-        switch (camera) {
-            case LEFT:
-                setupCameras = String.format(setupCameras,
-                        Camera.HEAD, Camera.RIGHT, Camera.LEFT);
-                break;
-            case RIGHT:
-                setupCameras = String.format(setupCameras,
-                        Camera.HEAD, Camera.LEFT, Camera.RIGHT);
-                break;
-            case HEAD:
-                setupCameras = String.format(setupCameras,
-                        Camera.LEFT, Camera.RIGHT, Camera.HEAD);
-                break;
-            default:
-                throw new AssertionError(camera.name());
+        //is camera enabled?
+        String statusString = io.sendCommand(
+                new Command("rosrun baxter_tools camera_control.py -l", true))
+                .getResult();
+
+        CameraStatus cameraStatus = CameraStatus.getStatusFromString(statusString);
+        if (!cameraStatus.isCameraOpen(camera)) {
+            //Send command and wait for result
+            CommandResult result = io.sendCommand(
+                    new Command(getEnableCameraCommand(camera), true));
         }
-        //Send command and wait for result
-        CommandResult result = io.sendCommand(new Command(setupCameras, true));
 
         //Make a folder for this request and start capturing images
         String imageFolderPath = String.format("%s/images/%s",
                 io.getFolderPath(), now.getMillis());
         String command = String.format("cd %s "
                 + "&& rosrun image_view extract_images"
-                + " image:=/cameras/%s/image _sec_per_frame:=10",
+                + " image:=/cameras/%s/image _sec_per_frame:=0.1",
                 imageFolderPath, Camera.LEFT);
 
         File imageFolder = FileUtils.makeDirectory(imageFolderPath);
@@ -202,8 +200,33 @@ public class AppianBaxterResource {
             image = FileUtils.getLastImage(imageFolder);
         }
         io.killRunningProcesses();
-        
+
         return FileUtils.getImageDataToSend(image);
+    }
+
+    private String getEnableCameraCommand(Camera camera) {
+        //Open this camera and close the other two
+        String setupCameras = "rosrun baxter_tools camera_control.py -c %s "
+                + "&& rosrun baxter_tools camera_control.py -c %s "
+                + "&& rosrun baxter_tools camera_control.py -o %s -r 1280x800"
+                + "&& rosrun baxter_tools camera_control.py -l";
+        switch (camera) {
+            case LEFT:
+                setupCameras = String.format(setupCameras,
+                        Camera.HEAD, Camera.RIGHT, Camera.LEFT);
+                break;
+            case RIGHT:
+                setupCameras = String.format(setupCameras,
+                        Camera.HEAD, Camera.LEFT, Camera.RIGHT);
+                break;
+            case HEAD:
+                setupCameras = String.format(setupCameras,
+                        Camera.LEFT, Camera.RIGHT, Camera.HEAD);
+                break;
+            default:
+                throw new AssertionError(camera.name());
+        }
+        return setupCameras;
     }
 
 }
