@@ -81,7 +81,12 @@ public class BaxterIO {
         if (command.isWaitForResult()) {
             result.setMessage(read(process));
             //Kick-off kill process
-            new Thread(() -> this.killProcessAndItsChildren(process)).start();
+            Thread t = new Thread(
+                    () -> {
+                        this.killProcessAndItsChildren(process);
+                    });
+            t.setPriority(Thread.MAX_PRIORITY);
+            t.start();
         } else {
             commandMap.put(result.getPid(), command);
             result.setMessage("You are doing an async operation. "
@@ -93,9 +98,9 @@ public class BaxterIO {
     }
 
     public Command getLastSentCommand(Integer pid) {
-        return commandMap.get(pid);    
+        return commandMap.get(pid);
     }
-    
+
     public CommandResult readResult(Integer pid) {
         CommandResult result = new CommandResult();
         Process process = processMap.get(pid);
@@ -111,6 +116,8 @@ public class BaxterIO {
 
     public String killProcessAndItsChildren(Process process) {
         Integer processPid = getProcessPid(process);
+        System.out.println("Starting process cleanup for " + processPid);
+
         StringBuilder sb = new StringBuilder(
                 "Killed following child processes: ");
         List<Integer> subProcesPids = new ArrayList<>();
@@ -127,9 +134,8 @@ public class BaxterIO {
         //5678
         //7890
         String[] tokens = writeAndRead(
-                String.format("ps --ppid %s | awk '{ print $1 }'",
-                        processPid), tempProcess)
-                .split(System.getProperty("line.separator"));
+                String.format("ps --ppid %s | awk '{ print $1 }'", processPid),
+                tempProcess).split(System.getProperty("line.separator"));
         for (String token : tokens) {
             Integer temp = Ints.tryParse(token);
             if (temp != null) {
@@ -145,7 +151,8 @@ public class BaxterIO {
 //            sb.append(System.getProperty("line.separator"))
 //                    .append(String.format("%s (%s)", pidName, pid));
             sb.append(String.format("%s,", pid));
-            writeAndRead(String.format("kill -int %s", pid), tempProcess);
+            writeAndRead(String.format("kill %s && echo done", pid), 
+                    tempProcess);
         }
         //destroy the temp process
         destroyProcess(tempProcess);
@@ -154,15 +161,13 @@ public class BaxterIO {
                 .append(String.format("Successfully killed "
                         + "parent process: (%s)", processPid));
 
-        
-
         String result = sb.toString();
         System.out.println(result);
+        System.out.println("Finished process cleanup for " + processPid);
+
         return result;
     }
-    
-    
-    
+
     //<editor-fold defaultstate="collapsed" desc="Private methods">
     private void destroyProcess(Process process) {
         Integer pid = getProcessPid(process);
@@ -172,8 +177,7 @@ public class BaxterIO {
         commandMap.remove(pid);
         process.destroy();
     }
-    
-    
+
     private String writeAndRead(String command, Process process) {
         write(command, process);
         return read(process);
@@ -204,7 +208,7 @@ public class BaxterIO {
             } while (bufferedReader.ready());
         } catch (InterruptedIOException e) {
             //Do something
-            sb.append("---Read timed eout---");
+            sb.append("---Read timed out---");
         } catch (IOException e) {
             sb.append("IOException occurred: ").append(e.getMessage());
         }

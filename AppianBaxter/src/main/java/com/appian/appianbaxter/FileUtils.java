@@ -48,6 +48,10 @@ public class FileUtils {
         ImageIO.write(bufferedImage, "jpeg", baos);
         return baos.toByteArray();
     }
+
+    static void deleteDirectory(File imageFolder) throws IOException {
+        org.apache.commons.io.FileUtils.deleteDirectory(imageFolder);
+    }
 }
 
 class ImageFilter implements FilenameFilter {

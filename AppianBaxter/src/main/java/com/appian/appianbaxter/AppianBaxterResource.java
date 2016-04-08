@@ -102,10 +102,11 @@ public class AppianBaxterResource {
 //                .build();
 //    }
 //
+
     @Path("io/terminate/{pid}")
     @POST
     @Timed
-    public Response terminateProcess(@PathParam("pid") Integer pid) {      
+    public Response terminateProcess(@PathParam("pid") Integer pid) {
         CommandResult result = new CommandResult(
                 io.getLastSentCommand(pid),
                 io.killProcessAndItsChildren(pid),
@@ -158,7 +159,7 @@ public class AppianBaxterResource {
             throws InterruptedException, IOException {
         return Response.ok(getImageFromCamera(Camera.HEAD)).build();
     }
-    
+
     private Status getStatus() {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_tools enable_robot.py -s"));
@@ -170,43 +171,46 @@ public class AppianBaxterResource {
         DateTime now = DateTime.now();
 
         //is camera enabled?
-        String result = io.sendCommand(
-                new Command("rosrun baxter_tools camera_control.py -l", true))
-                .getMessage();
+        CommandResult result = io.sendCommand(
+                new Command("rosrun baxter_tools camera_control.py -l", true));
 
-        CameraStatus cameraStatus = CameraStatus.getStatusFromString(result);
+        CameraStatus cameraStatus = CameraStatus.getStatusFromString(
+                result.getMessage());
         if (!cameraStatus.isCameraOpen(camera)) {
             //Send command and wait for result
-            io.sendCommand(
+            result = io.sendCommand(
                     new Command(getEnableCameraCommand(camera), true));
         }
 
         //Make a folder for this request and start capturing images
         String imageFolderPath = String.format("%s/images/%s",
                 io.getFolderPath(), now.getMillis());
-        String command = String.format("cd %s "
-                + "&& rosrun image_view extract_images"
-                + " image:=/cameras/%s/image _sec_per_frame:=0.1",
-                imageFolderPath, camera);
-
         File imageFolder = FileUtils.makeDirectory(imageFolderPath);
         if (imageFolder == null) {
             throw new RuntimeException("Could not create directory.");
         }
 
         //start taking pictures
-        io.sendCommand(new Command(command, false));
+        String command = String.format("cd %s "
+                + "&& rosrun image_view extract_images"
+                + " image:=/cameras/%s/image _sec_per_frame:=0.1",
+                imageFolderPath, camera);
+        result = io.sendCommand(new Command(command, false));
         //wait until a picture is taken
-        File image = FileUtils.getLastImage(imageFolder);
-        
+        File image = null;
         int count = 0;
-        while (image == null || count < 10) {
+        while (image == null && count < 10) {
             Thread.sleep(100);
             image = FileUtils.getLastImage(imageFolder);
             count++;
         }
+        //destroy the image process
+        io.killProcessAndItsChildren(result.getPid());
 
-        return FileUtils.getImageDataToSend(image);
+        byte[] imageData = 
+                image == null ? null : FileUtils.getImageDataToSend(image);
+        FileUtils.deleteDirectory(imageFolder);
+        return imageData;
     }
 
     private String getEnableCameraCommand(Camera camera) {
