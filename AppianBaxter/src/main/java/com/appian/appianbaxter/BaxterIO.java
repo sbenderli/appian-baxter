@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * An object that manages IO to/from baxter
@@ -27,7 +28,7 @@ public class BaxterIO {
     private final ProcessBuilder pb;
 
     private final static int READ_BUFFER = 1024;
-    private final static int READ_TIMEOUT = 10000;
+    private final static int DEFAULT_READ_TIMEOUT = 10000;
     private final static int READ_CLOSE_TIMEOUT = 10000;
 
     private Map<Integer, Process> processMap = new HashMap<>();
@@ -45,7 +46,7 @@ public class BaxterIO {
         return pb.directory().getAbsolutePath();
     }
 
-    public Process getNewProcess() {
+    public Process getNewProcess(int timeout) {
         Process process;
         try {
             process = pb.start();
@@ -53,11 +54,12 @@ public class BaxterIO {
             processMap.put(pid, process);
             readerMap.put(pid, new BufferedReader(
                     new InputStreamReader(
-                            USE_TIMEOUT_READ
-                                    ? new TimeoutInputStream(
-                                            process.getInputStream(), READ_BUFFER,
-                                            READ_TIMEOUT, READ_CLOSE_TIMEOUT)
-                                    : process.getInputStream())));
+                            timeout == -1
+                                    ? process.getInputStream()
+                                    : new TimeoutInputStream(
+                                            process.getInputStream(),
+                                            READ_BUFFER, timeout*1000,//to ms
+                                            READ_CLOSE_TIMEOUT))));
             writerMap.put(pid, new BufferedWriter(
                     new OutputStreamWriter(process.getOutputStream())));
             return process;
@@ -72,7 +74,7 @@ public class BaxterIO {
                 || command.getCommand().isEmpty()) {
             return new CommandResult(null, null, null);
         }
-        Process process = getNewProcess();
+        Process process = getNewProcess(command.getReadTimeout());
         write(command.getCommand(), process);
 
         CommandResult result = new CommandResult();
@@ -125,11 +127,7 @@ public class BaxterIO {
         //Start a new process to get sub pids and kill them
         //We can't do this from main process because it might be
         //running a process currently
-        Process tempProcess = getNewProcess();
-
-        //send the command that will get sub pids
-        //returned string will look like this:
-        //PID
+        Process tempProcess = getNewProcess(DEFAULT_READ_TIMEOUT);
         //1234
         //5678
         //7890
@@ -151,7 +149,7 @@ public class BaxterIO {
 //            sb.append(System.getProperty("line.separator"))
 //                    .append(String.format("%s (%s)", pidName, pid));
             sb.append(String.format("%s,", pid));
-            writeAndRead(String.format("kill %s && echo done", pid), 
+            writeAndRead(String.format("kill %s && echo done", pid),
                     tempProcess);
         }
         //destroy the temp process
@@ -168,6 +166,15 @@ public class BaxterIO {
         return result;
     }
 
+    public String killAllProcesses() {
+        StringBuilder sb = new StringBuilder(
+                "Started killing all processes...");
+        for(Entry<Integer, Process> entry : processMap.entrySet()) {
+            sb.append(killProcessAndItsChildren(entry.getValue()));
+        }
+        return sb.toString();
+    }
+    
     //<editor-fold defaultstate="collapsed" desc="Private methods">
     private void destroyProcess(Process process) {
         Integer pid = getProcessPid(process);

@@ -15,6 +15,9 @@ public class Command {
     private String command;
     private boolean waitForResult = true;
     
+    //Read timeout in seconds
+    private int readTimeout = 10; //10sec default readtimeout
+    
     public Command() {
     }
      
@@ -42,6 +45,15 @@ public class Command {
     public void setWaitForResult(boolean waitForResult) {
         this.waitForResult = waitForResult;
     }
+
+    public int getReadTimeout() {
+        return readTimeout;
+    }
+
+    public void setReadTimeout(int readTimeout) {
+        this.readTimeout = readTimeout;
+    }
+    
     
     
 }

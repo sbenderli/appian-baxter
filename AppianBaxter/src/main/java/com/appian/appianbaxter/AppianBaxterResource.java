@@ -34,6 +34,8 @@ public class AppianBaxterResource {
 
     public AppianBaxterResource(BaxterIO io) {
         this.io = io;
+        
+        initBaxter();
     }
 
     //<editor-fold defaultstate="collapsed" desc="Status">
@@ -92,18 +94,18 @@ public class AppianBaxterResource {
         CommandResult result = io.readResult(pid);
         return Response.ok(result).build();
     }
-//    
-//    @Path("io/clearbuffer")
-//    @POST
-//    @Timed
-//    public Response clearBuffer() {
-//        return Response
-//                .ok("Cleared buffer. Contents were: " + io.readResult())
-//                .build();
-//    }
-//
+    
+    @Path("io/killall")
+    @POST
+    @Timed
+    public Response clearBuffer() {
+        return Response
+                .ok(io.killAllProcesses())
+                .build();
+    }
 
-    @Path("io/terminate/{pid}")
+
+    @Path("io/kill/{pid}")
     @POST
     @Timed
     public Response terminateProcess(@PathParam("pid") Integer pid) {
@@ -179,7 +181,7 @@ public class AppianBaxterResource {
         if (!cameraStatus.isCameraOpen(camera)) {
             //Send command and wait for result
             result = io.sendCommand(
-                    new Command(getEnableCameraCommand(camera), true));
+                    new Command(getEnableCameraCommand(), true));
         }
 
         //Make a folder for this request and start capturing images
@@ -213,29 +215,31 @@ public class AppianBaxterResource {
         return imageData;
     }
 
-    private String getEnableCameraCommand(Camera camera) {
-        //Open this camera and close the other two
-        String setupCameras = "rosrun baxter_tools camera_control.py -c %s "
-                + "&& rosrun baxter_tools camera_control.py -c %s "
+    private String getEnableCameraCommand() {
+        //Currently only left and right camera are supported.
+        //So, close head cam and turn them both on
+        String setupCameras = String.format(
+                "rosrun baxter_tools camera_control.py -c %s "
                 + "&& rosrun baxter_tools camera_control.py -o %s -r 1280x800"
-                + "&& rosrun baxter_tools camera_control.py -l";
-        switch (camera) {
-            case LEFT:
-                setupCameras = String.format(setupCameras,
-                        Camera.HEAD, Camera.RIGHT, Camera.LEFT);
-                break;
-            case RIGHT:
-                setupCameras = String.format(setupCameras,
-                        Camera.HEAD, Camera.LEFT, Camera.RIGHT);
-                break;
-            case HEAD:
-                setupCameras = String.format(setupCameras,
-                        Camera.LEFT, Camera.RIGHT, Camera.HEAD);
-                break;
-            default:
-                throw new AssertionError(camera.name());
-        }
+                + "&& rosrun baxter_tools camera_control.py -o %s -r 1280x800"
+                + "&& rosrun baxter_tools camera_control.py -l",
+                Camera.HEAD, Camera.LEFT, Camera.RIGHT);
         return setupCameras;
     }
 
+    //Run this method to init Baxter...
+    private void initBaxter() {
+        //enable baxter
+        CommandResult result = io.sendCommand(
+                new Command("rosrun baxter_tools enable_robot.py -e"));
+        
+        //enable cameras
+        result = io.sendCommand(new Command(getEnableCameraCommand(), true));
+        
+        //start the trajectory server
+        Command cmd = new Command(
+                "rosrun baxter_interface joint_trajectory_action_server.py",
+                false);
+        result = io.sendCommand(cmd);
+    }
 }
