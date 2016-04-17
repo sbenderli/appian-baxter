@@ -30,6 +30,12 @@ public class Command {
         this.waitForResult = waitForResult;
     }
     
+    public Command(String command, boolean waitForResult, int readTimeout) {
+        this.command = command;
+        this.waitForResult = waitForResult;
+        this.readTimeout = readTimeout;
+    }
+    
     public String getCommand() {
         return command;
     }

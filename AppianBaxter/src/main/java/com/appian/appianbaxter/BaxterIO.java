@@ -87,7 +87,6 @@ public class BaxterIO {
                     () -> {
                         this.killProcessAndItsChildren(process);
                     });
-            t.setPriority(Thread.MAX_PRIORITY);
             t.start();
         } else {
             commandMap.put(result.getPid(), command);
@@ -174,6 +173,8 @@ public class BaxterIO {
         }
         return sb.toString();
     }
+    
+    
     
     //<editor-fold defaultstate="collapsed" desc="Private methods">
     private void destroyProcess(Process process) {

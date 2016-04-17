@@ -4,12 +4,16 @@ import com.appian.appianbaxter.domainentity.Camera;
 import com.appian.appianbaxter.domainentity.CameraStatus;
 import com.appian.appianbaxter.domainentity.Command;
 import com.appian.appianbaxter.domainentity.CommandResult;
+import com.appian.appianbaxter.domainentity.SensorReading;
+import com.appian.appianbaxter.domainentity.SensorType;
 import com.appian.appianbaxter.domainentity.Status;
 import com.yammer.metrics.annotation.Timed;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -43,7 +47,7 @@ public class AppianBaxterResource {
     @GET
     @Timed
     public Response getBaxterStatus() {
-        return Response.ok(getStatus()).build();
+         return Response.ok(getStatus()).build();
     }
 
     @Path("status/enable")
@@ -98,7 +102,7 @@ public class AppianBaxterResource {
     @Path("io/killall")
     @POST
     @Timed
-    public Response clearBuffer() {
+    public Response killAllProcesses() {
         return Response
                 .ok(io.killAllProcesses())
                 .build();
@@ -108,7 +112,7 @@ public class AppianBaxterResource {
     @Path("io/kill/{pid}")
     @POST
     @Timed
-    public Response terminateProcess(@PathParam("pid") Integer pid) {
+    public Response killProcess(@PathParam("pid") Integer pid) {
         CommandResult result = new CommandResult(
                 io.getLastSentCommand(pid),
                 io.killProcessAndItsChildren(pid),
@@ -116,13 +120,26 @@ public class AppianBaxterResource {
         result.setSuccess(true);
         return Response.ok(result).build();
     }
+    
+
+    @GET
+    @Path("/sensor/ph")
+    @Timed
+    public Response getPh() throws IOException {
+        CommandResult result = io.sendCommand(
+                new Command("./GoIO_DeviceCheck", true));
+
+        return Response.ok(getPhFromResult(result)).build();
+    }
+    
 
     @GET
     @Path("/image/test")
     @Produces("image/jpeg")
     @Timed
     public Response getTestImage() throws IOException {
-        BufferedImage image = ImageIO.read(new File("/home/serdar/Downloads/trump.jpg"));
+        BufferedImage image = ImageIO.read(
+                new File("/home/serdar/Downloads/trump.jpg"));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(image, "jpeg", baos);
@@ -153,14 +170,15 @@ public class AppianBaxterResource {
         return Response.ok(getImageFromCamera(Camera.RIGHT)).build();
     }
 
-    @GET
-    @Path("/camera/head")
-    @Produces("image/jpeg")
-    @Timed
-    public Response getImageFromHeadCamera()
-            throws InterruptedException, IOException {
-        return Response.ok(getImageFromCamera(Camera.HEAD)).build();
-    }
+    //For now, head camera is not available
+//    @GET
+//    @Path("/camera/head")
+//    @Produces("image/jpeg")
+//    @Timed
+//    public Response getImageFromHeadCamera()
+//            throws InterruptedException, IOException {
+//        return Response.ok(getImageFromCamera(Camera.HEAD)).build();
+//    }
 
     private Status getStatus() {
         CommandResult result = io.sendCommand(
@@ -241,5 +259,21 @@ public class AppianBaxterResource {
                 "rosrun baxter_interface joint_trajectory_action_server.py",
                 false);
         result = io.sendCommand(cmd);
+    }
+
+    private static SensorReading getPhFromResult(CommandResult result) {
+        SensorReading reading = new SensorReading(SensorType.PH);
+        double ph = 0;
+        String[] tokens = result.getMessage().split(System.lineSeparator());
+        //last token is the average reading
+        Pattern p = Pattern.compile("(\\d+(?:\\.\\d+)?)");
+        Matcher m = p.matcher(tokens[tokens.length - 1]);
+        while (m.find()) {
+            String phToken = m.group();
+            reading.setReading(Double.parseDouble(phToken));
+            break;
+        }
+        
+        return reading;
     }
 }
