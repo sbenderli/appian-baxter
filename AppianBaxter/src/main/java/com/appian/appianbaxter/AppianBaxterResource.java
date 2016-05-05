@@ -84,6 +84,7 @@ public class AppianBaxterResource {
     private String drip = "drip";
     private String stopPicture = "stoppic";
     private String end = "end";
+    private String wave = "wave";
     @Path("titration/startpicture")
     @POST
     @Timed
@@ -237,6 +238,31 @@ public class AppianBaxterResource {
 //            throws InterruptedException, IOException {
 //        return Response.ok(getImageFromCamera(Camera.HEAD)).build();
 //    }
+    
+    @POST
+    @Path("/record")
+    @Timed
+    public Response record() throws IOException {
+        CommandResult result = io.sendCommand(
+                new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", false));
+        return Response.ok(result).build();
+    }
+    @POST
+    @Path("/playback")
+    @Timed
+    public Response playback() throws IOException {
+        CommandResult result = io.sendCommand(
+                new Command("rosrun baxter_examples joint_trajectory_file_playback.py -f recording.txt", true, 60));
+        return Response.ok(result).build();
+    }
+    @POST
+    @Path("/wave")
+    @Timed
+    public Response wave() throws IOException {
+        Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + wave, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
 
     private Status getStatus() {
         CommandResult result = io.sendCommand(
@@ -326,7 +352,7 @@ public class AppianBaxterResource {
         io.sendCommand(cmd);
         
         cmd = new Command(
-            "rosrun baxter_examples gripper_cuff_control.py", true);
+            "rosrun baxter_examples gripper_cuff_control.py", false);
         io.sendCommand(cmd);
     }
 
