@@ -77,6 +77,64 @@ public class AppianBaxterResource {
         return Response.ok(getStatus()).build();
     }
 //</editor-fold>
+    
+    //<editor-fold defaultstate="collapsed" desc="Titration">
+    private String startPicture = "startpic";
+    private String initialize = "initialize";
+    private String drip = "drip";
+    private String stopPicture = "stoppic";
+    private String end = "end";
+    @Path("titration/startpicture")
+    @POST
+    @Timed
+    public Response startPicture() {
+        Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + startPicture, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
+    
+    @Path("titration/initialize")
+    @POST
+    @Timed
+    public Response initialize() {
+//        Command command = new Command(
+//                "rosrun baxter_examples joint_trajectory_file_playback.py -f " + initialize, true, -1);
+        Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + initialize, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
+    
+    @Path("titration/drip")
+    @POST
+    @Timed
+    public Response drip() {
+//        Command command = new Command(
+//                "rosrun baxter_examples joint_trajectory_file_playback.py -f " + drip, true, -1);
+      Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + drip, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
+    
+    @Path("titration/stoppicture")
+    @POST
+    @Timed
+    public Response stopPicture() {
+        Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + stopPicture, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
+    
+    @Path("titration/end")
+    @POST
+    @Timed
+    public Response end() {
+        Command command = new Command(
+                "rosrun baxter_examples baxter_titrate.py -s " + end, true, -1);
+        return Response.ok(io.sendCommand(command)).build();
+    }
+    
+    
+//</editor-fold>
 
     @POST
     @Timed
@@ -219,11 +277,12 @@ public class AppianBaxterResource {
         //wait until a picture is taken
         File image = null;
         int count = 0;
-        while (image == null && count < 10) {
+        while (image == null && count < 100) {
             Thread.sleep(100);
             image = FileUtils.getLastImage(imageFolder);
             count++;
         }
+
         //destroy the image process
         io.killProcessAndItsChildren(result.getPid());
 
@@ -249,7 +308,7 @@ public class AppianBaxterResource {
     private void initBaxter() {
         //enable baxter
         CommandResult result = io.sendCommand(
-                new Command("rosrun baxter_tools enable_robot.py -e"));
+                new Command("rosrun baxter_tools enable_robot.py -e", true));
         
         //enable cameras
         result = io.sendCommand(new Command(getEnableCameraCommand(), true));
@@ -259,10 +318,19 @@ public class AppianBaxterResource {
                 "rosrun baxter_interface joint_trajectory_action_server.py",
                 false);
         result = io.sendCommand(cmd);
+        
+        //Put welcome to Appian on screen
+        cmd = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter_welcome.jpg",
+            true);
+        io.sendCommand(cmd);
+        
+        cmd = new Command(
+            "rosrun baxter_examples gripper_cuff_control.py", true);
+        io.sendCommand(cmd);
     }
 
-    private static SensorReading getPhFromResult(CommandResult result) {
-        SensorReading reading = new SensorReading(SensorType.PH);
+    private static double getPhFromResult(CommandResult result) {
         double ph = 0;
         String[] tokens = result.getMessage().split(System.lineSeparator());
         //last token is the average reading
@@ -270,10 +338,9 @@ public class AppianBaxterResource {
         Matcher m = p.matcher(tokens[tokens.length - 1]);
         while (m.find()) {
             String phToken = m.group();
-            reading.setReading(Double.parseDouble(phToken));
+            ph = Double.parseDouble(phToken);
             break;
         }
-        
-        return reading;
+        return ph;
     }
 }
