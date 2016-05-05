@@ -245,7 +245,7 @@ public class AppianBaxterResource {
     public Response record() throws IOException {
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", false));
-        return Response.ok(result).build();
+        return Response.ok(result.getPid()).build();
     }
     @POST
     @Path("/playback")
