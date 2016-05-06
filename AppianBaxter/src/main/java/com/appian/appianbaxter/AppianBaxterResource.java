@@ -222,7 +222,6 @@ public class AppianBaxterResource {
     public Response getPh() throws IOException {
         CommandResult result = io.sendCommand(
                 new Command("./GoIO_DeviceCheck", true));
-
         return Response.ok(getPhFromResult(result)).build();
     }
     
@@ -283,9 +282,9 @@ public class AppianBaxterResource {
                     .entity("Another recording in progress. Please kill: " + recordingPid)
                     .build();
         }
-        
+        io.sendCommand(new Command("rm recording.txt", true));
         CommandResult result = io.sendCommand(
-                new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", false));
+                new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", true, 10));
         recordingPid = result.getPid();
         return Response.ok(recordingPid).build();
     }
