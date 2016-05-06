@@ -35,6 +35,8 @@ import org.joda.time.DateTime;
 public class AppianBaxterResource {
 
     private final BaxterIO io;
+    private static boolean recordingOngoing = false;
+    private static Integer recordingPid = null;
 
     public AppianBaxterResource(BaxterIO io) {
         this.io = io;
@@ -89,7 +91,11 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response startPicture() {
-        Command command = new Command(
+        Command command  = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter1.jpg",
+            true);
+        io.sendCommand(command);
+        command = new Command(
                 "rosrun baxter_examples baxter_titrate.py -s " + startPicture, true, -1);
         return Response.ok(io.sendCommand(command)).build();
     }
@@ -98,9 +104,12 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response initialize() {
-//        Command command = new Command(
-//                "rosrun baxter_examples joint_trajectory_file_playback.py -f " + initialize, true, -1);
-        Command command = new Command(
+      Command command  = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter2.jpg",
+            true);
+        io.sendCommand(command);
+        
+        command = new Command(
                 "rosrun baxter_examples baxter_titrate.py -s " + initialize, true, -1);
         return Response.ok(io.sendCommand(command)).build();
     }
@@ -109,9 +118,12 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response drip() {
-//        Command command = new Command(
-//                "rosrun baxter_examples joint_trajectory_file_playback.py -f " + drip, true, -1);
-      Command command = new Command(
+        Command command  = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter3.jpg",
+            true);
+        io.sendCommand(command);
+        
+      command = new Command(
                 "rosrun baxter_examples baxter_titrate.py -s " + drip, true, -1);
         return Response.ok(io.sendCommand(command)).build();
     }
@@ -120,7 +132,12 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response stopPicture() {
-        Command command = new Command(
+        Command command  = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter4.jpg",
+            true);
+        io.sendCommand(command);
+        
+        command = new Command(
                 "rosrun baxter_examples baxter_titrate.py -s " + stopPicture, true, -1);
         return Response.ok(io.sendCommand(command)).build();
     }
@@ -129,9 +146,21 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response end() {
-        Command command = new Command(
+        Command command  = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter5.jpg",
+            true);
+        io.sendCommand(command);
+        
+        command = new Command(
                 "rosrun baxter_examples baxter_titrate.py -s " + end, true, -1);
-        return Response.ok(io.sendCommand(command)).build();
+        CommandResult result = io.sendCommand(command);
+        
+        //reset the image on baxter's face
+        command = new Command(
+            "rosrun baxter_examples xdisplay_image.py --file=baxter_welcome.jpg",
+            true);
+        io.sendCommand(command);
+        return Response.ok(result).build();
     }
     
     
@@ -172,6 +201,12 @@ public class AppianBaxterResource {
     @POST
     @Timed
     public Response killProcess(@PathParam("pid") Integer pid) {
+        //If this is the recording PID, clear it out so we can allow new recordings
+        if (pid.equals(recordingPid)) {
+            recordingPid = null;
+        }
+        
+        
         CommandResult result = new CommandResult(
                 io.getLastSentCommand(pid),
                 io.killProcessAndItsChildren(pid),
@@ -243,9 +278,16 @@ public class AppianBaxterResource {
     @Path("/record")
     @Timed
     public Response record() throws IOException {
+        if (recordingPid != null) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity("Another recording in progress. Please kill: " + recordingPid)
+                    .build();
+        }
+        
         CommandResult result = io.sendCommand(
                 new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", false));
-        return Response.ok(result.getPid()).build();
+        recordingPid = result.getPid();
+        return Response.ok(recordingPid).build();
     }
     @POST
     @Path("/playback")
