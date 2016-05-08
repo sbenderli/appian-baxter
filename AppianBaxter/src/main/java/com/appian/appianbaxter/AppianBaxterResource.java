@@ -276,15 +276,18 @@ public class AppianBaxterResource {
     @POST
     @Path("/record")
     @Timed
-    public Response record() throws IOException {
+    public Response record() throws IOException, InterruptedException {
         if (recordingPid != null) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity("Another recording in progress. Please kill: " + recordingPid)
                     .build();
         }
-        io.sendCommand(new Command("rm recording.txt", true));
+        //io.sendCommand(new Command("rm recording.txt", true));
         CommandResult result = io.sendCommand(
-                new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", true, 10));
+                new Command("rosrun baxter_examples joint_recorder.py -f recording.txt", false));
+        Thread.sleep(2000);
+        
+        
         recordingPid = result.getPid();
         return Response.ok(recordingPid).build();
     }
@@ -394,7 +397,7 @@ public class AppianBaxterResource {
         
         cmd = new Command(
             "rosrun baxter_examples gripper_cuff_control.py", false);
-        io.sendCommand(cmd);
+        result = io.sendCommand(cmd);
     }
 
     private static double getPhFromResult(CommandResult result) {

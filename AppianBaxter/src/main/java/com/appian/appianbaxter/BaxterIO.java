@@ -36,6 +36,8 @@ public class BaxterIO {
     private Map<Integer, BufferedReader> readerMap = new HashMap<>();
     private Map<Integer, BufferedWriter> writerMap = new HashMap<>();
 
+    private Object lock = new Object();
+
     public static String START_FOLDER;
 
     public BaxterIO(ProcessBuilder pb) {
@@ -58,13 +60,13 @@ public class BaxterIO {
                                     ? process.getInputStream()
                                     : new TimeoutInputStream(
                                             process.getInputStream(),
-                                            READ_BUFFER, timeout*1000,//to ms
+                                            READ_BUFFER, timeout * 1000,//to ms
                                             READ_CLOSE_TIMEOUT))));
             writerMap.put(pid, new BufferedWriter(
                     new OutputStreamWriter(process.getOutputStream())));
             return process;
         } catch (IOException ex) {
-            throw new RuntimeException("Failed to start the process");
+            throw new RuntimeException("Failed to start the process. Exception: " + ex.getMessage());
         }
     }
 
@@ -116,6 +118,7 @@ public class BaxterIO {
     }
 
     public String killProcessAndItsChildren(Process process) {
+        if (process == null) return "";
         Integer processPid = getProcessPid(process);
         System.out.println("Starting process cleanup for " + processPid);
 
@@ -168,21 +171,25 @@ public class BaxterIO {
     public String killAllProcesses() {
         StringBuilder sb = new StringBuilder(
                 "Started killing all processes...");
-        for(Entry<Integer, Process> entry : processMap.entrySet()) {
-            sb.append(killProcessAndItsChildren(entry.getValue()));
+        
+        List<Process> processes = new ArrayList<>(processMap.values());
+        for (Process p : processes) {
+            sb.append(killProcessAndItsChildren(p));
         }
         return sb.toString();
     }
-    
-    
-    
+
     //<editor-fold defaultstate="collapsed" desc="Private methods">
     private void destroyProcess(Process process) {
+        if (process == null) return;
         Integer pid = getProcessPid(process);
-        readerMap.remove(pid);
-        writerMap.remove(pid);
-        processMap.remove(pid);
-        commandMap.remove(pid);
+
+        synchronized (lock) {
+            readerMap.remove(pid);
+            writerMap.remove(pid);
+            processMap.remove(pid);
+            commandMap.remove(pid);
+        }
         process.destroy();
     }
 
